@@ -120,18 +120,7 @@ public interface DatabaseInterface extends Cloneable {
    *          The databaseName to set.
    */
   public void setDatabaseName( String databaseName );
-
-  /**
-   * @return Returns the databasePortNumber as a string.
-   */
-  public String getDatabasePortNumberString();
-
-  /**
-   * @param databasePortNumberString
-   *          The databasePortNumber to set as a string.
-   */
-  public void setDatabasePortNumberString( String databasePortNumberString );
-
+  
   /**
    * @return Returns the hostname.
    */
@@ -1065,6 +1054,72 @@ public interface DatabaseInterface extends Cloneable {
   public boolean isMySQLVariant();
 
   /**
+   * @return true if the database is a Postgres variant like Postgres, Greenplum, Redshift and so on.
+   */
+  public boolean isPostgresVariant();
+
+  /**
+   * @return true if the database is a Sybase variant.
+   */
+  public boolean isSybaseVariant();
+
+  /**
+   * @return true if the database is a SybaseIQ variant.
+   */
+  public boolean isSybaseIQVariant();
+
+  /**
+   * @return true if the database is a neoview variant.
+   */
+  public boolean isNeoviewVariant();
+
+  /**
+   * @return true if the database is a Exasol variant.
+   */
+  public boolean isExasolVariant();
+
+  /**
+   * @return true if the database is a Informix variant.
+   */
+  public boolean isInformixVariant();
+
+  /**
+   * @return true if the database is a MS SQL Server (native) variant.
+   */
+  public boolean isMSSQLServerNativeVariant();
+
+  /**
+   * @return true if the database is a MS SQL Server variant.
+   */
+  public boolean isMSSQLServerVariant();
+
+  /**
+   * @return true if the database is a Netteza variant.
+   */
+  public boolean isNettezaVariant();
+
+  /**
+   * @return true if the database is an Oracle variant.
+   */
+  public boolean isOracleVariant();
+
+  /**
+   * @return true if the database is an Netezza variant.
+   */
+  public boolean isNetezzaVariant();
+
+  /**
+   * @return true if the database is a SQLite variant.
+   */
+  public boolean isSQLiteVariant();
+
+  /**
+   * @return true if the database is a Terradata variant.
+   */
+  public boolean isTeradataVariant();
+
+
+  /**
    * Returns a true of savepoints can be release, false if not.
    *
    * @return
@@ -1255,4 +1310,26 @@ public interface DatabaseInterface extends Cloneable {
   default String getLegacyColumnName( DatabaseMetaData dbMetaData, ResultSetMetaData rsMetaData, int index ) throws HopDatabaseException {
     return "";
   }
+
+  /**
+   * Forms the drop table statement specific for a certain RDBMS.
+   *
+   * @param tableName Name of the table to drop
+   * @return Drop table statement specific for the current database
+   */
+  String getDropTableIfExistsStatement( String tableName );
+
+  /**
+   * Returns false if exception doesn't require
+   * full exception log. Could be used in cases of DB vendor
+   * specific error which doesn't require stack trace log.
+   *
+   * @param e exception to check
+   * @return decision result
+   */
+  boolean fullExceptionLog( Exception e );
+
+  String getPort();
+
+  void setPort( String port );
 }

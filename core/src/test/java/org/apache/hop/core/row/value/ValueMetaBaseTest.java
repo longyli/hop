@@ -24,6 +24,7 @@ package org.apache.hop.core.row.value;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.SystemUtils;
+import org.apache.hop.core.database.*;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -32,17 +33,6 @@ import org.junit.Test;
 import org.mockito.Spy;
 import org.owasp.encoder.Encode;
 import org.apache.hop.core.Const;
-import org.apache.hop.core.database.BaseDatabaseMeta;
-import org.apache.hop.core.database.DatabaseInterface;
-import org.apache.hop.core.database.DatabaseMeta;
-import org.apache.hop.core.database.GreenplumDatabaseMeta;
-import org.apache.hop.core.database.MySQLDatabaseMeta;
-import org.apache.hop.core.database.NetezzaDatabaseMeta;
-import org.apache.hop.core.database.OracleDatabaseMeta;
-import org.apache.hop.core.database.PostgreSQLDatabaseMeta;
-import org.apache.hop.core.database.SQLiteDatabaseMeta;
-import org.apache.hop.core.database.TeradataDatabaseMeta;
-import org.apache.hop.core.database.Vertica5DatabaseMeta;
 import org.apache.hop.core.exception.HopDatabaseException;
 import org.apache.hop.core.exception.HopException;
 import org.apache.hop.core.exception.HopValueException;
@@ -57,7 +47,7 @@ import org.apache.hop.core.plugins.PluginRegistry;
 import org.apache.hop.core.row.ValueMetaInterface;
 import org.apache.hop.core.xml.XMLHandler;
 import org.apache.hop.i18n.BaseMessages;
-import org.apache.hop.junit.rules.RestorePDIEnvironment;
+import org.apache.hop.junit.rules.RestoreHopEnvironment;
 import org.w3c.dom.Node;
 
 import java.io.ByteArrayInputStream;
@@ -73,7 +63,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.ParseException;
@@ -95,17 +84,15 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ValueMetaBaseTest {
-  @ClassRule public static RestorePDIEnvironment env = new RestorePDIEnvironment();
+  @ClassRule public static RestoreHopEnvironment env = new RestoreHopEnvironment();
 
   private static final String TEST_NAME = "TEST_NAME";
   private static final String LOG_FIELD = "LOG_FIELD";
@@ -181,33 +168,6 @@ public class ValueMetaBaseTest {
     assertEquals( base.getStorageType(), ValueMetaInterface.STORAGE_TYPE_NORMAL );
   }
 
-  /**
-   * PDI-10877 Table input step returns no data when pulling a timestamp column from IBM Netezza
-   *
-   * @throws Exception
-   */
-  @Test
-  public void testGetValueFromSqlTypeNetezza() throws Exception {
-    ValueMetaBase obj = new ValueMetaBase();
-    DatabaseInterface databaseInterface = new NetezzaDatabaseMeta();
-
-    ResultSetMetaData metaData = mock( ResultSetMetaData.class );
-    when( resultSet.getMetaData() ).thenReturn( metaData );
-
-    when( metaData.getColumnType( 1 ) ).thenReturn( Types.DATE );
-    when( metaData.getColumnType( 2 ) ).thenReturn( Types.TIME );
-
-    obj.type = ValueMetaInterface.TYPE_DATE;
-    // call to testing method
-    obj.getValueFromResultSet( databaseInterface, resultSet, 0 );
-    // for jdbc Date type getDate method called
-    verify( resultSet, times( 1 ) ).getDate( anyInt() );
-
-    obj.getValueFromResultSet( databaseInterface, resultSet, 1 );
-    // for jdbc Time type getTime method called
-    verify( resultSet, times( 1 ) ).getTime( anyInt() );
-  }
-
   @Test
   public void testGetDataXML() throws IOException {
     BigDecimal bigDecimal = BigDecimal.ONE;
@@ -265,49 +225,6 @@ public class ValueMetaBaseTest {
   }
 
   @Test
-  public void testGetBinaryWithLength_WhenBinarySqlTypesOfVertica() throws Exception {
-    final int binaryColumnIndex = 1;
-    final int varbinaryColumnIndex = 2;
-    final int expectedBinarylength = 1;
-    final int expectedVarBinarylength = 80;
-
-    ValueMetaBase obj = new ValueMetaBase();
-    DatabaseMeta dbMeta = spy( new DatabaseMeta() );
-    DatabaseInterface databaseInterface = new Vertica5DatabaseMeta();
-    dbMeta.setDatabaseInterface( databaseInterface );
-
-    ResultSetMetaData metaData = mock( ResultSetMetaData.class );
-
-    when( resultSet.getMetaData() ).thenReturn( metaData );
-    when( metaData.getColumnType( binaryColumnIndex ) ).thenReturn( Types.BINARY );
-    when( metaData.getPrecision( binaryColumnIndex ) ).thenReturn( expectedBinarylength );
-    when( metaData.getColumnDisplaySize( binaryColumnIndex ) ).thenReturn( expectedBinarylength * 2 );
-
-    when( metaData.getColumnType( varbinaryColumnIndex ) ).thenReturn( Types.BINARY );
-    when( metaData.getPrecision( varbinaryColumnIndex ) ).thenReturn( expectedVarBinarylength );
-    when( metaData.getColumnDisplaySize( varbinaryColumnIndex ) ).thenReturn( expectedVarBinarylength * 2 );
-
-    // get value meta for binary type
-    ValueMetaInterface binaryValueMeta =
-      obj.getValueFromSQLType( dbMeta, TEST_NAME, metaData, binaryColumnIndex, false, false );
-    assertNotNull( binaryValueMeta );
-    assertTrue( TEST_NAME.equals( binaryValueMeta.getName() ) );
-    assertTrue( ValueMetaInterface.TYPE_BINARY == binaryValueMeta.getType() );
-    assertTrue( expectedBinarylength == binaryValueMeta.getLength() );
-    assertFalse( binaryValueMeta.isLargeTextField() );
-
-    // get value meta for varbinary type
-    ValueMetaInterface varbinaryValueMeta =
-      obj.getValueFromSQLType( dbMeta, TEST_NAME, metaData, varbinaryColumnIndex, false, false );
-    assertNotNull( varbinaryValueMeta );
-    assertTrue( TEST_NAME.equals( varbinaryValueMeta.getName() ) );
-    assertTrue( ValueMetaInterface.TYPE_BINARY == varbinaryValueMeta.getType() );
-    assertTrue( expectedVarBinarylength == varbinaryValueMeta.getLength() );
-    assertFalse( varbinaryValueMeta.isLargeTextField() );
-
-  }
-
-  @Test
   public void testGetValueFromSQLTypeTypeOverride() throws Exception {
     final int varbinaryColumnIndex = 2;
 
@@ -322,23 +239,6 @@ public class ValueMetaBaseTest {
 
     verify( databaseInterface, times( 1 ) ).customizeValueFromSQLType( any( ValueMetaInterface.class ),
       any( ResultSetMetaData.class ), anyInt() );
-  }
-
-  @Test
-  public void testVerticaTimeType() throws Exception {
-    // PDI-12244
-    ResultSetMetaData metaData = mock( ResultSetMetaData.class );
-    ValueMetaInterface valueMetaInterface = mock( ValueMetaInternetAddress.class );
-
-    when( resultSet.getMetaData() ).thenReturn( metaData );
-    when( metaData.getColumnType( 1 ) ).thenReturn( Types.TIME );
-    when( resultSet.getTime( 1 ) ).thenReturn( new Time( 0 ) );
-    when( valueMetaInterface.getOriginalColumnType() ).thenReturn( Types.TIME );
-    when( valueMetaInterface.getType() ).thenReturn( ValueMetaInterface.TYPE_DATE );
-
-    DatabaseInterface databaseInterface = new Vertica5DatabaseMeta();
-    Object ret = databaseInterface.getValueFromResultSet( resultSet, valueMetaInterface, 0 );
-    assertEquals( new Time( 0 ), ret );
   }
 
   @Test
@@ -880,28 +780,6 @@ public class ValueMetaBaseTest {
     assertTrue( vmb.convertBigNumberToBoolean( new BigDecimal( "1.7976E308" ) ) );
   }
 
-
-  //PDI-14721 ESR-5021
-  @Test
-  public void testGetValueFromSQLTypeBinaryMysql() throws Exception {
-
-    final int binaryColumnIndex = 1;
-    ValueMetaBase valueMetaBase = new ValueMetaBase();
-    DatabaseMeta dbMeta = spy( new DatabaseMeta() );
-    DatabaseInterface databaseInterface = new MySQLDatabaseMeta();
-    dbMeta.setDatabaseInterface( databaseInterface );
-
-    ResultSetMetaData metaData = mock( ResultSetMetaData.class );
-
-    when( resultSet.getMetaData() ).thenReturn( metaData );
-    when( metaData.getColumnType( binaryColumnIndex ) ).thenReturn( Types.LONGVARBINARY );
-
-    ValueMetaInterface binaryValueMeta =
-      valueMetaBase.getValueFromSQLType( dbMeta, TEST_NAME, metaData, binaryColumnIndex, false, false );
-    assertEquals( ValueMetaInterface.TYPE_BINARY, binaryValueMeta.getType() );
-    assertTrue( binaryValueMeta.isBinary() );
-  }
-
   @Test
   public void testGetValueFromNode() throws Exception {
 
@@ -962,69 +840,6 @@ public class ValueMetaBaseTest {
     base.setConversionMetadata( new ValueMetaTimestamp( "ValueMetaTimestamp" ) );
     Timestamp timestamp = (Timestamp) base.convertDataUsingConversionMetaData( timestampStringRepresentation );
     assertEquals( expectedTimestamp, timestamp );
-  }
-
-  /**
-   * When data is shorter than value meta length all is good. Values well bellow DB max text field length.
-   */
-  @Test
-  public void test_PDI_17126_Postgres() throws Exception {
-    String data = StringUtils.repeat( "*", 10 );
-    initValueMeta( new PostgreSQLDatabaseMeta(), 20, data );
-
-    verify( preparedStatementMock, times( 1 ) ).setString( 0, data );
-  }
-
-  /**
-   * When data is longer than value meta length all is good as well. Values well bellow DB max text field length.
-   */
-  @Test
-  public void test_Pdi_17126_postgres_DataLongerThanMetaLength() throws Exception {
-    String data = StringUtils.repeat( "*", 20 );
-    initValueMeta( new PostgreSQLDatabaseMeta(), 10, data );
-
-    verify( preparedStatementMock, times( 1 ) ).setString( 0, data );
-  }
-
-  /**
-   * Only truncate when the data is larger that what is supported by the DB.
-   * For test purposes we're mocking it at 1KB instead of the real value which is 2GB for PostgreSQL
-   */
-  @Test
-  public void test_Pdi_17126_postgres_truncate() throws Exception {
-    List<HopLoggingEvent> events = listener.getEvents();
-    assertEquals( 0, events.size() );
-
-    databaseMetaSpy.setDatabaseInterface( new PostgreSQLDatabaseMeta() );
-    doReturn( 1024 ).when( databaseMetaSpy ).getMaxTextFieldLength();
-    doReturn( false ).when( databaseMetaSpy ).supportsSetCharacterStream();
-
-    String data = StringUtils.repeat( "*", 2048 );
-
-    ValueMetaBase valueMetaString = new ValueMetaBase( LOG_FIELD, ValueMetaInterface.TYPE_STRING, 2048, 0 );
-    valueMetaString.setPreparedStatementValue( databaseMetaSpy, preparedStatementMock, 0, data );
-
-    verify( preparedStatementMock, never() ).setString( 0, data );
-    verify( preparedStatementMock, times( 1 ) ).setString( anyInt(), anyString() );
-
-    // check that truncated string was logged
-    assertEquals( 1, events.size() );
-    assertEquals( "ValueMetaBase - Truncating 1024 symbols of original message in 'LOG_FIELD' field",
-      events.get( 0 ).getMessage().toString() );
-  }
-
-  @Test
-  public void test_Pdi_17126_mysql() throws Exception {
-    String data = StringUtils.repeat( "*", 10 );
-    initValueMeta( new MySQLDatabaseMeta(), DatabaseMeta.CLOB_LENGTH, data );
-
-    verify( preparedStatementMock, times( 1 ) ).setString( 0, data );
-  }
-
-  private void initValueMeta( BaseDatabaseMeta dbMeta, int length, Object data ) throws HopDatabaseException {
-    ValueMetaBase valueMetaString = new ValueMetaBase( LOG_FIELD, ValueMetaInterface.TYPE_STRING, length, 0 );
-    databaseMetaSpy.setDatabaseInterface( dbMeta );
-    valueMetaString.setPreparedStatementValue( databaseMetaSpy, preparedStatementMock, 0, data );
   }
 
   @Test
@@ -1276,33 +1091,6 @@ public class ValueMetaBaseTest {
   }
 
   @Test
-  public void testMetdataPreviewSqlDoubleWithTooBigLengthAndPrecisionUsingPostgesSQL() throws SQLException, HopDatabaseException {
-    doReturn( Types.DOUBLE ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( 20 ).when( resultSet ).getInt( "COLUMN_SIZE" );
-    doReturn( mock( Object.class ) ).when( resultSet ).getObject( "DECIMAL_DIGITS" );
-    doReturn( 18 ).when( resultSet ).getInt( "DECIMAL_DIGITS" );
-    doReturn( mock( PostgreSQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isNumber() );
-    assertEquals( -1, valueMeta.getPrecision() );
-    assertEquals( -1, valueMeta.getLength() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlDoubleWithPrecisionGreaterThanLengthUsingMySQLVariant() throws SQLException, HopDatabaseException {
-    doReturn( Types.DOUBLE ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( 4 ).when( resultSet ).getInt( "COLUMN_SIZE" );
-    doReturn( mock( Object.class ) ).when( resultSet ).getObject( "DECIMAL_DIGITS" );
-    doReturn( 5 ).when( resultSet ).getInt( "DECIMAL_DIGITS" );
-    doReturn( mock( MySQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    doReturn( true ).when( dbMeta ).isMySQLVariant( );
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isNumber() );
-    assertEquals( -1, valueMeta.getPrecision() );
-    assertEquals( -1, valueMeta.getLength() );
-  }
-
-  @Test
   public void testMetdataPreviewSqlDoubleToPentahoBigNumber() throws SQLException, HopDatabaseException {
     doReturn( Types.DOUBLE ).when( resultSet ).getInt( "DATA_TYPE" );
     doReturn( 20 ).when( resultSet ).getInt( "COLUMN_SIZE" );
@@ -1336,32 +1124,6 @@ public class ValueMetaBaseTest {
     assertTrue( valueMeta.isNumber() );
     assertEquals( 2, valueMeta.getPrecision() );
     assertEquals( 3, valueMeta.getLength() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlNumericWithUndefinedSizeUsingPostgesSQL() throws SQLException, HopDatabaseException {
-    doReturn( Types.NUMERIC ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( 0 ).when( resultSet ).getInt( "COLUMN_SIZE" );
-    doReturn( mock( Object.class ) ).when( resultSet ).getObject( "DECIMAL_DIGITS" );
-    doReturn( 0 ).when( resultSet ).getInt( "DECIMAL_DIGITS" );
-    doReturn( mock( PostgreSQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isBigNumber() );
-    assertEquals( -1, valueMeta.getPrecision() );
-    assertEquals( -1, valueMeta.getLength() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlNumericWithUndefinedSizeUsingGreenplum() throws SQLException, HopDatabaseException {
-    doReturn( Types.NUMERIC ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( 0 ).when( resultSet ).getInt( "COLUMN_SIZE" );
-    doReturn( mock( Object.class ) ).when( resultSet ).getObject( "DECIMAL_DIGITS" );
-    doReturn( 0 ).when( resultSet ).getInt( "DECIMAL_DIGITS" );
-    doReturn( mock( GreenplumDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isBigNumber() );
-    assertEquals( -1, valueMeta.getPrecision() );
-    assertEquals( -1, valueMeta.getLength() );
   }
 
   @Test
@@ -1412,33 +1174,10 @@ public class ValueMetaBaseTest {
   }
 
   @Test
-  public void testMetdataPreviewSqlDateToPentahoDateUsingTeradata() throws SQLException, HopDatabaseException {
-    doReturn( Types.DATE ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( TeradataDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isDate() );
-    assertEquals( 1, valueMeta.getPrecision() );
-  }
-
-  @Test
   public void testMetdataPreviewSqlTimeToPentahoDate() throws SQLException, HopDatabaseException {
     doReturn( Types.TIME ).when( resultSet ).getInt( "DATA_TYPE" );
     ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
     assertTrue( valueMeta.isDate() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlTimeToPentahoIntegerUsingMySQLVariant() throws SQLException, HopDatabaseException {
-    doReturn( Types.TIME ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( MySQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    doReturn( true ).when( dbMeta ).isMySQLVariant( );
-    doReturn( mock( Properties.class ) ).when( dbMeta ).getConnectionProperties();
-    when( dbMeta.getConnectionProperties().getProperty( "yearIsDateType" ) ).thenReturn( "false" );
-    doReturn( "YEAR" ).when( resultSet ).getString( "TYPE_NAME" );
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isInteger() );
-    assertEquals( 0, valueMeta.getPrecision() );
-    assertEquals( 4, valueMeta.getLength() );
   }
 
   @Test
@@ -1456,39 +1195,6 @@ public class ValueMetaBaseTest {
   }
 
   @Test
-  public void testMetdataPreviewSqlBinaryToPentahoBinary() throws SQLException, HopDatabaseException {
-    doReturn( Types.BINARY ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( PostgreSQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isBinary() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlBinaryToPentahoStringUsingSQLite() throws SQLException, HopDatabaseException {
-    doReturn( Types.BINARY ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( SQLiteDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isString() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlBlobToPentahoBinary() throws SQLException, HopDatabaseException {
-    doReturn( Types.BLOB ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( PostgreSQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isBinary() );
-    assertTrue( valueMeta.isBinary() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlVarBinaryToPentahoBinary() throws SQLException, HopDatabaseException {
-    doReturn( Types.VARBINARY ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( PostgreSQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isBinary() );
-  }
-
-  @Test
   public void testMetdataPreviewSqlVarBinaryToPentahoStringUsingOracle() throws SQLException, HopDatabaseException {
     doReturn( Types.VARBINARY ).when( resultSet ).getInt( "DATA_TYPE" );
     doReturn( 16 ).when( resultSet ).getInt( "COLUMN_SIZE" );
@@ -1496,6 +1202,78 @@ public class ValueMetaBaseTest {
     ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
     assertTrue( valueMeta.isString() );
     assertEquals( 16, valueMeta.getLength() );
+  }
+
+
+  @Test
+  public void testMetdataPreviewSqlLongVarBinaryToPentahoStringUsingOracle() throws SQLException, HopDatabaseException {
+    doReturn( Types.LONGVARBINARY ).when( resultSet ).getInt( "DATA_TYPE" );
+    doReturn( mock( OracleDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
+    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
+    assertTrue( valueMeta.isString() );
+  }
+
+  //PDI-14721 ESR-5021
+  @Test
+  public void testGetValueFromSQLTypeBinaryMysql() throws Exception {
+
+    final int binaryColumnIndex = 1;
+    ValueMetaBase valueMetaBase = new ValueMetaBase();
+    DatabaseMeta dbMeta = spy( new DatabaseMeta() );
+    DatabaseInterface databaseInterface = new MySQLDatabaseMeta();
+    dbMeta.setDatabaseInterface( databaseInterface );
+
+    ResultSetMetaData metaData = mock( ResultSetMetaData.class );
+
+    when( resultSet.getMetaData() ).thenReturn( metaData );
+    when( metaData.getColumnType( binaryColumnIndex ) ).thenReturn( Types.LONGVARBINARY );
+
+    ValueMetaInterface binaryValueMeta =
+            valueMetaBase.getValueFromSQLType( dbMeta, TEST_NAME, metaData, binaryColumnIndex, false, false );
+    assertEquals( ValueMetaInterface.TYPE_BINARY, binaryValueMeta.getType() );
+    assertTrue( binaryValueMeta.isBinary() );
+  }
+
+  @Test
+  public void test_Pdi_17126_mysql() throws Exception {
+    String data = StringUtils.repeat( "*", 10 );
+    initValueMeta( new MySQLDatabaseMeta(), DatabaseMeta.CLOB_LENGTH, data );
+
+    verify( preparedStatementMock, times( 1 ) ).setString( 0, data );
+  }
+  private void initValueMeta( BaseDatabaseMeta dbMeta, int length, Object data ) throws HopDatabaseException {
+    ValueMetaBase valueMetaString = new ValueMetaBase( LOG_FIELD, ValueMetaInterface.TYPE_STRING, length, 0 );
+    databaseMetaSpy.setDatabaseInterface( dbMeta );
+    valueMetaString.setPreparedStatementValue( databaseMetaSpy, preparedStatementMock, 0, data );
+  }
+
+
+  @Test
+  public void testMetdataPreviewSqlDoubleWithPrecisionGreaterThanLengthUsingMySQLVariant() throws SQLException, HopDatabaseException {
+    doReturn( Types.DOUBLE ).when( resultSet ).getInt( "DATA_TYPE" );
+    doReturn( 4 ).when( resultSet ).getInt( "COLUMN_SIZE" );
+    doReturn( mock( Object.class ) ).when( resultSet ).getObject( "DECIMAL_DIGITS" );
+    doReturn( 5 ).when( resultSet ).getInt( "DECIMAL_DIGITS" );
+    doReturn( mock( MySQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
+    doReturn( true ).when( dbMeta ).isMySQLVariant( );
+    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
+    assertTrue( valueMeta.isNumber() );
+    assertEquals( -1, valueMeta.getPrecision() );
+    assertEquals( -1, valueMeta.getLength() );
+  }
+
+  @Test
+  public void testMetdataPreviewSqlTimeToPentahoIntegerUsingMySQLVariant() throws SQLException, HopDatabaseException {
+    doReturn( Types.TIME ).when( resultSet ).getInt( "DATA_TYPE" );
+    doReturn( mock( MySQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
+    doReturn( true ).when( dbMeta ).isMySQLVariant( );
+    doReturn( mock( Properties.class ) ).when( dbMeta ).getConnectionProperties();
+    when( dbMeta.getConnectionProperties().getProperty( "yearIsDateType" ) ).thenReturn( "false" );
+    doReturn( "YEAR" ).when( resultSet ).getString( "TYPE_NAME" );
+    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
+    assertTrue( valueMeta.isInteger() );
+    assertEquals( 0, valueMeta.getPrecision() );
+    assertEquals( 4, valueMeta.getLength() );
   }
 
   @Test
@@ -1510,22 +1288,6 @@ public class ValueMetaBaseTest {
   }
 
   @Test
-  public void testMetdataPreviewSqlLongVarBinaryToPentahoBinary() throws SQLException, HopDatabaseException {
-    doReturn( Types.LONGVARBINARY ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( PostgreSQLDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isBinary() );
-  }
-
-  @Test
-  public void testMetdataPreviewSqlLongVarBinaryToPentahoStringUsingOracle() throws SQLException, HopDatabaseException {
-    doReturn( Types.LONGVARBINARY ).when( resultSet ).getInt( "DATA_TYPE" );
-    doReturn( mock( OracleDatabaseMeta.class ) ).when( dbMeta ).getDatabaseInterface();
-    ValueMetaInterface valueMeta = valueMetaBase.getMetadataPreview( dbMeta, resultSet );
-    assertTrue( valueMeta.isString() );
-  }
-
-  @Test
   public void testMetdataPreviewSqlDoubleToPentahoNumberUsingMySQL() throws SQLException, HopDatabaseException {
     doReturn( Types.DOUBLE ).when( resultSet ).getInt( "DATA_TYPE" );
     doReturn( 22 ).when( resultSet ).getInt( "COLUMN_SIZE" );
@@ -1535,4 +1297,6 @@ public class ValueMetaBaseTest {
     assertTrue( valueMeta.isNumber() );
     assertEquals( -1, valueMeta.getLength() );
   }
+
+
 }

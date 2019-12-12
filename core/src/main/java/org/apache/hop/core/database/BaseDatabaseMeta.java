@@ -37,6 +37,8 @@ import java.util.Map;
 import java.util.Properties;
 
 import org.apache.hop.core.Const;
+import org.apache.hop.core.gui.plugin.GuiElement;
+import org.apache.hop.core.gui.plugin.GuiElementType;
 import org.apache.hop.core.util.Utils;
 import org.apache.hop.core.RowMetaAndData;
 import org.apache.hop.core.encryption.Encr;
@@ -53,7 +55,7 @@ import org.apache.hop.repository.ObjectId;
  * @author Matt
  * @since 11-mrt-2005
  */
-public abstract class BaseDatabaseMeta implements Cloneable, DatabaseInterfaceExtended {
+public abstract class BaseDatabaseMeta implements Cloneable, DatabaseInterface {
   /**
    * The port number of the database as string: allows for parameterization.
    */
@@ -272,10 +274,57 @@ public abstract class BaseDatabaseMeta implements Cloneable, DatabaseInterfaceEx
   private String name;
   private String displayName;
   private int accessType; // Database.TYPE_ODBC / NATIVE / OCI
-  private String hostname;
-  private String databaseName;
-  private String username;
-  private String password;
+
+  @GuiElement(
+    id = "hostname",
+    order="01",
+    i18nPackage = "org.apache.hop.ui.core.database.dialog",
+    label = "DatabaseDialog.label.ServerHostname",
+    type = GuiElementType.TEXT,
+    variables = true,
+    parentId = DatabaseMeta.GUI_PLUGIN_ELEMENT_PARENT_ID)
+  protected String hostname;
+
+  @GuiElement(
+    id = "port",
+    order="02",
+    i18nPackage = "org.apache.hop.ui.core.database.dialog",
+    label = "DatabaseDialog.label.PortNumber",
+    type = GuiElementType.TEXT,
+    variables = true,
+    parentId = DatabaseMeta.GUI_PLUGIN_ELEMENT_PARENT_ID)
+  protected String port;
+
+  @GuiElement(
+    id = "databaseName",
+    order="03",
+    i18nPackage = "org.apache.hop.ui.core.database.dialog",
+    label = "DatabaseDialog.label.DatabaseName",
+    type = GuiElementType.TEXT,
+    variables = true,
+    parentId = DatabaseMeta.GUI_PLUGIN_ELEMENT_PARENT_ID)
+  protected String databaseName;
+
+  @GuiElement(
+    id = "username",
+    order="04",
+    i18nPackage = "org.apache.hop.ui.core.database.dialog",
+    label = "DatabaseDialog.label.Username",
+    type = GuiElementType.TEXT,
+    variables = true,
+    parentId = DatabaseMeta.GUI_PLUGIN_ELEMENT_PARENT_ID)
+  protected String username;
+
+  @GuiElement(
+    id = "password",
+    order="05",
+    i18nPackage = "org.apache.hop.ui.core.database.dialog",
+    label = "DatabaseDialog.label.Password",
+    type = GuiElementType.TEXT,
+    password = true,
+    parentId = DatabaseMeta.GUI_PLUGIN_ELEMENT_PARENT_ID)
+  protected String password;
+
   private String servername; // Informix only!
 
   private String dataTablespace; // data storage location, For Oracle & perhaps others
@@ -428,25 +477,6 @@ public abstract class BaseDatabaseMeta implements Cloneable, DatabaseInterfaceEx
   }
 
   /**
-   * @param databasePortNumberString
-   *          The databasePortNumber string to set.
-   */
-  @Override
-  public void setDatabasePortNumberString( String databasePortNumberString ) {
-    if ( databasePortNumberString != null ) {
-      getAttributes().put( BaseDatabaseMeta.ATTRIBUTE_PORT_NUMBER, databasePortNumberString );
-    }
-  }
-
-  /**
-   * @return Returns the databasePortNumber string.
-   */
-  @Override
-  public String getDatabasePortNumberString() {
-    return getAttributes().getProperty( ATTRIBUTE_PORT_NUMBER, "-1" );
-  }
-
-  /**
    * @return Returns the hostname.
    */
   @Override
@@ -461,6 +491,22 @@ public abstract class BaseDatabaseMeta implements Cloneable, DatabaseInterfaceEx
   @Override
   public void setHostname( String hostname ) {
     this.hostname = hostname;
+  }
+
+  /**
+   * Gets port
+   *
+   * @return value of port
+   */
+  public String getPort() {
+    return port;
+  }
+
+  /**
+   * @param port The port to set
+   */
+  public void setPort( String port ) {
+    this.port = port;
   }
 
   /**
@@ -1964,6 +2010,103 @@ public abstract class BaseDatabaseMeta implements Cloneable, DatabaseInterfaceEx
   public boolean isMySQLVariant() {
     return false;
   }
+
+  /**
+   * @return true if the database is a Postgres variant like Postgres, Greenplum, Redshift and so on.
+   */
+  @Override
+  public boolean isPostgresVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a Teradata variant.
+   */
+  @Override
+  public boolean isTeradataVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a Sybase variant.
+   */
+  @Override
+  public boolean isSybaseVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a Sybase variant.
+   */
+  @Override
+  public boolean isSybaseIQVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a Neoview variant.
+   */
+  @Override
+  public boolean isNeoviewVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a Exasol variant.
+   */
+  @Override
+  public boolean isExasolVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a Informix variant.
+   */
+  @Override
+  public boolean isInformixVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a MS SQL Server (native) variant.
+   */
+  @Override
+  public boolean isMSSQLServerNativeVariant() { return false; }
+
+  /**
+   * @return true if the database is a MS SQL Server variant.
+   */
+  @Override
+  public boolean isMSSQLServerVariant() { return false; }
+
+  /**
+   * @return true if the database is a MS SQL Server variant.
+   */
+  @Override
+  public boolean isNettezaVariant() { return false; }
+
+  /**
+   * @return true if the database is an Oracle variant.
+   */
+  public boolean isOracleVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is an Netezza variant.
+   */
+  public boolean isNetezzaVariant() {
+    return false;
+  }
+
+  /**
+   * @return true if the database is a SQLite variant.
+   */
+  @Override
+  public boolean isSQLiteVariant() {
+    return false;
+  }
+
 
   /**
    * @return true if the database type can be tested against a database instance

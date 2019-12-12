@@ -27,12 +27,7 @@ import org.apache.hop.compatibility.Value;
 import org.apache.hop.core.Const;
 import org.apache.hop.core.database.DatabaseInterface;
 import org.apache.hop.core.database.DatabaseMeta;
-import org.apache.hop.core.database.GreenplumDatabaseMeta;
-import org.apache.hop.core.database.NetezzaDatabaseMeta;
 import org.apache.hop.core.database.OracleDatabaseMeta;
-import org.apache.hop.core.database.PostgreSQLDatabaseMeta;
-import org.apache.hop.core.database.SQLiteDatabaseMeta;
-import org.apache.hop.core.database.TeradataDatabaseMeta;
 import org.apache.hop.core.exception.HopDatabaseException;
 import org.apache.hop.core.exception.HopEOFException;
 import org.apache.hop.core.exception.HopException;
@@ -97,13 +92,17 @@ public class ValueMetaBase implements ValueMetaInterface {
   // endregion
 
   // region Default Types Format
-  public static final String DEFAULT_INTEGER_FORMAT_MASK = Const.NVL(
-          EnvUtil.getSystemProperty( Const.HOP_DEFAULT_INTEGER_FORMAT ),
-          "####0;-####0" );
+  public static final String DEFAULT_INTEGER_FORMAT_MASK;
+  public static final String DEFAULT_NUMBER_FORMAT_MASK;
 
-  public static final String DEFAULT_NUMBER_FORMAT_MASK = Const.NVL(
-          EnvUtil.getSystemProperty( Const.HOP_DEFAULT_NUMBER_FORMAT ),
-          "####0.0#########;-####0.0#########" );
+  static {
+    DEFAULT_INTEGER_FORMAT_MASK = Const.NVL(
+      EnvUtil.getSystemProperty( Const.HOP_DEFAULT_INTEGER_FORMAT ),
+      "####0;-####0" );
+    DEFAULT_NUMBER_FORMAT_MASK = Const.NVL(
+      EnvUtil.getSystemProperty( Const.HOP_DEFAULT_NUMBER_FORMAT ),
+      "####0.0#########;-####0.0#########" );
+  }
 
   public static final String DEFAULT_BIG_NUMBER_FORMAT_MASK = Const.NVL(
           EnvUtil.getSystemProperty( Const.HOP_DEFAULT_BIGNUMBER_FORMAT ),
@@ -117,7 +116,7 @@ public class ValueMetaBase implements ValueMetaInterface {
   // endregion
 
   // region ValueMetaBase Attributes
-  protected static Class<?> PKG = Const.class; // for i18n purposes, needed by Translator2
+  public static Class<?> PKG = Const.class; // for i18n purposes, needed by Translator2
 
   public static final String XML_META_TAG = "value-meta";
   public static final String XML_DATA_TAG = "value-data";
@@ -917,7 +916,7 @@ public class ValueMetaBase implements ValueMetaInterface {
     return compatibleDateFormat.format( date );
   }
 
-  protected synchronized Date convertStringToDate( String string ) throws HopValueException {
+  public synchronized Date convertStringToDate( String string ) throws HopValueException {
     string = Const.trimToType( string, getTrimType() ); // see if trimming needs
     // to be performed before
     // conversion
@@ -974,7 +973,7 @@ public class ValueMetaBase implements ValueMetaInterface {
     return new Date( number.longValue() );
   }
 
-  protected synchronized String convertNumberToString( Double number ) throws HopValueException {
+  public synchronized String convertNumberToString( Double number ) throws HopValueException {
     if ( number == null ) {
       if ( !outputPaddingEnabled || length < 1 ) {
         return null;
@@ -1477,7 +1476,7 @@ public class ValueMetaBase implements ValueMetaInterface {
     return bool.booleanValue() ? BigDecimal.ONE : BigDecimal.ZERO;
   }
 
-  protected Boolean convertBigNumberToBoolean( BigDecimal number ) {
+  public Boolean convertBigNumberToBoolean( BigDecimal number ) {
     if ( number == null ) {
       return null;
     }
@@ -4796,7 +4795,7 @@ public class ValueMetaBase implements ValueMetaInterface {
             }
 
             // If we're dealing with PostgreSQL and double precision types
-            if ( databaseMeta.getDatabaseInterface() instanceof PostgreSQLDatabaseMeta && type == java.sql.Types.DOUBLE
+            if ( databaseMeta.getDatabaseInterface().isPostgresVariant() && type == java.sql.Types.DOUBLE
                 && precision >= 16 && length >= 16 ) {
               precision = -1;
               length = -1;
@@ -4831,8 +4830,7 @@ public class ValueMetaBase implements ValueMetaInterface {
             }
           }
 
-          if ( databaseMeta.getDatabaseInterface() instanceof PostgreSQLDatabaseMeta
-              || databaseMeta.getDatabaseInterface() instanceof GreenplumDatabaseMeta ) {
+          if ( databaseMeta.getDatabaseInterface().isPostgresVariant() ) {
             // undefined size => arbitrary precision
             if ( type == java.sql.Types.NUMERIC && length == 0 && precision == 0 ) {
               valtype = ValueMetaInterface.TYPE_BIGNUMBER;
@@ -4866,7 +4864,7 @@ public class ValueMetaBase implements ValueMetaInterface {
           break;
 
         case java.sql.Types.DATE:
-          if ( databaseMeta.getDatabaseInterface() instanceof TeradataDatabaseMeta ) {
+          if ( databaseMeta.getDatabaseInterface().isTeradataVariant() ) {
             precision = 1;
           }
         case java.sql.Types.TIME:
@@ -4909,7 +4907,7 @@ public class ValueMetaBase implements ValueMetaInterface {
             // PDI-6677 - don't call 'length = rm.getColumnDisplaySize(index);'
             length = -1; // keep the length to -1, e.g. for string functions (e.g.
             // CONCAT see PDI-4812)
-          } else if ( databaseMeta.getDatabaseInterface() instanceof SQLiteDatabaseMeta ) {
+          } else if ( databaseMeta.getDatabaseInterface().isSQLiteVariant() ) {
             valtype = ValueMetaInterface.TYPE_STRING;
           } else {
             length = -1;
@@ -5086,7 +5084,7 @@ public class ValueMetaBase implements ValueMetaInterface {
             }
 
             // If we're dealing with PostgreSQL and double precision types
-            if ( databaseMeta.getDatabaseInterface() instanceof PostgreSQLDatabaseMeta && originalColumnType == java.sql.Types.DOUBLE
+            if ( databaseMeta.getDatabaseInterface().isPostgresVariant() && originalColumnType == java.sql.Types.DOUBLE
                 && precision >= 16 && length >= 16 ) {
               precision = -1;
               length = -1;
@@ -5125,8 +5123,7 @@ public class ValueMetaBase implements ValueMetaInterface {
             }
           }
 
-          if ( databaseMeta.getDatabaseInterface() instanceof PostgreSQLDatabaseMeta
-              || databaseMeta.getDatabaseInterface() instanceof GreenplumDatabaseMeta ) {
+          if ( databaseMeta.getDatabaseInterface().isPostgresVariant() ) {
             // undefined size => arbitrary precision
             if ( originalColumnType == java.sql.Types.NUMERIC && length == 0 && precision == 0 ) {
               valtype = ValueMetaInterface.TYPE_BIGNUMBER;
@@ -5160,7 +5157,7 @@ public class ValueMetaBase implements ValueMetaInterface {
           break;
 
         case java.sql.Types.DATE:
-          if ( databaseMeta.getDatabaseInterface() instanceof TeradataDatabaseMeta ) {
+          if ( databaseMeta.getDatabaseInterface().isTeradataVariant() ) {
             precision = 1;
           }
         case java.sql.Types.TIME:
@@ -5203,7 +5200,7 @@ public class ValueMetaBase implements ValueMetaInterface {
             // PDI-6677 - don't call 'length = rm.getColumnDisplaySize(index);'
             length = -1; // keep the length to -1, e.g. for string functions (e.g.
             // CONCAT see PDI-4812)
-          } else if ( databaseMeta.getDatabaseInterface() instanceof SQLiteDatabaseMeta ) {
+          } else if ( databaseMeta.getDatabaseInterface().isSQLiteVariant() ) {
             valtype = ValueMetaInterface.TYPE_STRING;
           } else {
             length = -1;
@@ -5292,7 +5289,7 @@ public class ValueMetaBase implements ValueMetaInterface {
           if ( getPrecision() != 1 && databaseInterface.supportsTimeStampToDateConversion() ) {
             data = resultSet.getTimestamp( index + 1 );
             break; // Timestamp extends java.util.Date
-          } else if ( databaseInterface instanceof NetezzaDatabaseMeta ) {
+          } else if ( databaseInterface.isNetezzaVariant() ) {
             // PDI-10877 workaround for IBM netezza jdbc 'special' implementation
             data = getNetezzaDateValueWorkaround( databaseInterface, resultSet, index + 1 );
             break;

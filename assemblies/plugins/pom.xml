@@ -11,41 +11,13 @@
   <parent>
     <artifactId>hop-assemblies</artifactId>
     <groupId>org.hop</groupId>
-    <version>0.1.0</version>
+    <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <properties>
-    <!-- plugins -->
-    <hop-plugins-dummy.version>${project.version}</hop-plugins-dummy.version>
-    <hop-plugins-core.version>${project.version}</hop-plugins-core.version>
-  </properties>
+  <modules>
+    <module>databases</module>
+    <module>dist</module>
+  </modules>
 
-  <dependencies>
-    <dependency>
-      <groupId>org.hop</groupId>
-      <artifactId>hop-core-plugins</artifactId>
-      <version>${hop-plugins-core.version}</version>
-      <type>zip</type>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
 
-    <dependency>
-      <groupId>org.hop</groupId>
-      <artifactId>hop-dummy-plugins</artifactId>
-      <version>${hop-plugins-dummy.version}</version>
-      <type>zip</type>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-
-  </dependencies>
 </project>

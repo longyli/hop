@@ -22,17 +22,16 @@
 
 package org.apache.hop.core;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.hop.core.encryption.Encr;
 import org.apache.hop.core.encryption.TwoWayPasswordEncoderPluginType;
 import org.apache.hop.core.exception.HopException;
 import org.apache.hop.core.exception.HopPluginException;
 import org.apache.hop.core.extension.ExtensionPointPluginType;
+import org.apache.hop.core.gui.plugin.GuiElement;
+import org.apache.hop.core.gui.plugin.GuiElements;
+import org.apache.hop.core.gui.plugin.GuiPlugin;
+import org.apache.hop.core.gui.plugin.GuiPluginType;
+import org.apache.hop.core.gui.plugin.GuiRegistry;
 import org.apache.hop.core.logging.ConsoleLoggingEventListener;
 import org.apache.hop.core.logging.HopLogStore;
 import org.apache.hop.core.logging.LoggingPluginInterface;
@@ -46,15 +45,27 @@ import org.apache.hop.core.row.value.ValueMetaPluginType;
 import org.apache.hop.core.util.EnvUtil;
 import org.apache.hop.i18n.BaseMessages;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * This singleton is responsible for initializing the Hop client environment and remembering if it is initialized.
  * More specifically it loads client plugins like value meta plugins and other core Hop functionality.
  *
  * @author matt
- *
  */
 public class HopClientEnvironment {
-  /** For i18n purposes, needed by Translator2!! */
+  /**
+   * For i18n purposes, needed by Translator2!!
+   */
   private static Class<?> PKG = Const.class;
 
   private static HopClientEnvironment instance = null;
@@ -63,6 +74,7 @@ public class HopClientEnvironment {
 
   public enum ClientType {
     SPOON, PAN, KITCHEN, CARTE, DI_SERVER, SCALE, OTHER;
+
     public String getID() {
       if ( this != OTHER ) {
         return this.name();
@@ -82,7 +94,9 @@ public class HopClientEnvironment {
       ValueMetaPluginType.getInstance(),
       DatabasePluginType.getInstance(),
       ExtensionPointPluginType.getInstance(),
-      TwoWayPasswordEncoderPluginType.getInstance() )
+      TwoWayPasswordEncoderPluginType.getInstance(),
+      GuiPluginType.getInstance()
+      )
     );
   }
 
@@ -125,7 +139,70 @@ public class HopClientEnvironment {
 
     Encr.init( passwordEncoderPluginID );
 
+    initGuiPlugins();
+
     initialized = new Boolean( true );
+  }
+
+  /**
+   * Look for GuiElement annotated fields in all the GuiPlugins.
+   * Put them in the Gui registry
+   * @throws HopException
+   */
+  public static void initGuiPlugins() throws HopException {
+
+    try {
+      GuiRegistry guiRegistry = GuiRegistry.getInstance();
+      PluginRegistry pluginRegistry = PluginRegistry.getInstance();
+
+      List<PluginInterface> guiPlugins = pluginRegistry.getPlugins( GuiPluginType.class );
+      for ( PluginInterface guiPlugin : guiPlugins ) {
+        ClassLoader classLoader = pluginRegistry.getClassLoader( guiPlugin );
+        Class<?>[] typeClasses = guiPlugin.getClassMap().keySet().toArray( new Class<?>[ 0 ] );
+        String mainClassname = guiPlugin.getClassMap().get( typeClasses[ 0 ] );
+        Class<?> mainClass = classLoader.loadClass( mainClassname );
+        List<Field> fields = findDeclaredFields(mainClass);
+
+        for ( Field field : fields ) {
+          GuiElement guiElement = field.getAnnotation( GuiElement.class );
+          if ( guiElement != null ) {
+            // Add the GUI Element to the registry...
+            //
+            guiRegistry.addGuiElement(mainClassname, guiElement, field.getName(), field.getType());
+          }
+        }
+      }
+      // Sort all GUI elements once.
+      //
+      guiRegistry.sortAllElements();
+
+    } catch(Exception e) {
+      throw new HopException( "Error looking for Elements in GUI Plugins ", e );
+    }
+  }
+
+  /**
+   * Get all declared fields from the given class, also the ones from all super classes
+   *
+   * @param parentClass
+   * @return A unqiue list of fields.
+   */
+  private static final List<Field> findDeclaredFields(Class<?> parentClass) {
+    Set<Field> fields = new HashSet<>(  );
+
+    for (Field field : parentClass.getDeclaredFields()) {
+      fields.add(field);
+    }
+    Class<?> superClass = parentClass.getSuperclass();
+    while (superClass!=null) {
+      for (Field field : superClass.getDeclaredFields()) {
+        fields.add(field);
+      }
+
+      superClass = superClass.getSuperclass();
+    }
+
+    return new ArrayList<>( fields );
   }
 
   public static boolean isInitialized() {
@@ -163,8 +240,7 @@ public class HopClientEnvironment {
   /**
    * Creates the default kettle properties file, containing the standard header.
    *
-   * @param directory
-   *          the directory
+   * @param directory the directory
    */
   private static void createDefaultHopProperties( String directory ) {
 
@@ -202,6 +278,7 @@ public class HopClientEnvironment {
 
   /**
    * Set the Client ID which has significance when the ClientType == OTHER
+   *
    * @param id
    */
   public void setClientID( String id ) {
